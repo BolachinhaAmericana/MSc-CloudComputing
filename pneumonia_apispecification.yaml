@@ -1,0 +1,54 @@
+openapi: 3.0.0
+info:
+  version: 1.0.0
+  title: Pneumonia Data Preprocessing API
+  description: An API to preprocess chest x-ray images from patients with Pneumonia.
+paths:
+    /preprocessing:
+      post:
+        description: Upload an X-ray image for preprocessing
+        requestBody:
+          required: true
+          content:
+            multipart/form-data:
+              schema:
+                type: object
+                properties:
+                  file:
+                    type: string
+                    format: binary
+        responses:
+          '200':
+            description: Successfully returns the preprocessed image 
+            content:
+              application/dicom:
+                schema:
+                  type: string
+                  format: binary
+          '400':
+            description: Invalid image provided
+          '500':
+            description: Server error
+
+    /preprocessing/{patient_id}:
+          get:
+            description: Retrieve the preprocessed image by its patient ID
+            parameters:
+              - name: patient_id
+                in: path
+                required: true
+                description: The patient ID associated with the preprocessed image
+                schema:
+                  type: string
+            responses:
+              '200':
+                description: Successfully returns the previously preprocessed image associated with a certain patient ID
+                content:
+                  application/dicom:
+                    schema:
+                      type: string
+                      format: binary
+              '400':
+                description: Invalid image provided
+              '500':
+                description: Server error
