@@ -1,0 +1,233 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Report Generator",
+    "description": "Report Generator based on infered results from a ML diagnosis",
+    "version": "0.0.1"
+  },
+  "servers": [
+    {
+      "url": "https://Project/Report"
+    }
+  ],
+  "tags": [
+    {
+      "name": "report"
+    },
+    {
+      "name": "pet"
+    },
+    {
+      "name": "store"
+    },
+    {
+      "name": "user"
+    }
+  ],
+  "paths": {
+    "/upload_image": {
+      "post": {
+        "tags": [
+          "report"
+        ],
+        "summary": "Add an X-Ray to Diagnose",
+        "description": "Add an X-Ray to Diagnose",
+        "operationId": "upload_image",
+        "requestBody": {
+          "description": "request an X-Ray image",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Patient"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Patient"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid ID supplied"
+          },
+          "404": {
+            "description": "Patient not found"
+          },
+          "422": {
+            "description": "Validation exception"
+          }
+        }
+      }
+    },
+    "/infer_xray": {
+      "get": {
+        "tags": [
+          "report"
+        ],
+        "summary": "get x-ray diagnosis",
+        "parameters": [
+          {
+            "name": "x_ray",
+            "in": "query",
+            "description": "get prediction based on xray imaging",
+            "required": true,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid status value"
+          }
+        }
+      }
+    },
+    "/infer_features": {
+      "get": {
+        "tags": [
+          "report"
+        ],
+        "summary": "get patient features diagnosis",
+        "parameters": [
+          {
+            "name": "patient_features",
+            "in": "query",
+            "description": "get prediction based on patient features",
+            "required": false,
+            "schema": {
+              "type": "object"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "successful operation",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid status value"
+          }
+        }
+      }
+    },
+    "/set_report_information": {
+      "post": {
+        "tags": [
+          "report"
+        ],
+        "summary": "Information to include in the report",
+        "description": "Information to include in the report",
+        "operationId": "set_report",
+        "requestBody": {
+          "description": "request patient information to include in the report",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatientReportInformation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful operation, report downloaded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Report"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid ID supplied"
+          },
+          "404": {
+            "description": "Patient not found"
+          },
+          "422": {
+            "description": "Validation exception"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Patient": {
+        "type": "object",
+        "properties": {
+          "patient_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "x_ray": {
+            "type": "object",
+            "format": "LargeBinary"
+          },
+          "other_features": {
+            "type": "object",
+            "format": "dict",
+            "example": {
+              "feature1": "None",
+              "feature2": 10
+            }
+          }
+        }
+      },
+      "PatientReportInformation": {
+        "type": "object",
+        "properties": {
+          "patient_id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "result_inference_xray": {
+            "type": "boolean"
+          },
+          "result_inference_features": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Report": {
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "api_key": {
+        "type": "apiKey",
+        "name": "api_key",
+        "in": "header"
+      }
+    }
+  }
+}
