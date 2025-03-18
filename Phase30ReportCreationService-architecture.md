@@ -1,7 +1,7 @@
 ## Service Diagram
 
-[[images/RerportCreationDiagram.png]]
 
+![image](images/RerportCreationDiagram.png)
 ## Functional Requirements
 
 1. Receive ML inference results
