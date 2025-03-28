@@ -5,7 +5,7 @@
 ## Functional Requirements
 
 1. Receive ML inference results
-2.  Receive Patient Metadata
+2. Receive Patient Metadata
 3. Format the report in pdf
 4. Retrieval of the report to view
 ## Microservices Components
