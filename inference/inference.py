@@ -44,7 +44,7 @@ class InferenceHandler:
         else:
             predicted_class = "PNEUMONIA"
         
-        return predicted_class, (confidence.item()*100) # e.g predicted_class = 0, confidence = 0.95 (95% confidence)
+        return [predicted_class, (confidence.item()*100)] # e.g predicted_class = 0, confidence = 0.95 (95% confidence)
        
         ## Tbm posso fazer o output voltar pro cpu so pra ter a certeza que funciona 
             
