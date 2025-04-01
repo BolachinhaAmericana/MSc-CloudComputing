@@ -12,10 +12,7 @@ import matplotlib.pyplot as plt
 class DICOM:
     def __init__(self, dcm_path):
         self.dcm_path = dcm_path
-        self.dcm = None
-
-    def load_dicom(self):
-        self.dcm = dcmread(self.dcm_path)
+        self.dcm = dcmread(dcm_path)
 
     def generate_dicom(self, image_path, metadata, output_path):
         image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
