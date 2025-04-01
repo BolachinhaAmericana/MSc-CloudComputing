@@ -8,7 +8,6 @@ import cv2
 
 import matplotlib.pyplot as plt
 
-
 class UseDicom:
     def __init__(self, dcm_path):
         self.dcm = dcmread(dcm_path)
@@ -96,7 +95,7 @@ class GenerateDicom:
         return self.ds
 
 if __name__ == "__main__":
-
+    '''
     ## Generate and Display Example
     template_metadata = {
             "patient_id": random.randint(1000, 9999),
@@ -119,4 +118,4 @@ if __name__ == "__main__":
     img = dcm.get_image_pixel_array()
     print(dcm.get_metadata())
     dcm.display_image(img)
-
+    '''
