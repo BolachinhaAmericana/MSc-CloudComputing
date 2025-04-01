@@ -5,7 +5,7 @@ import tempfile
 from PIL import Image
 import os
 
-from MegaDCM import UseDicom
+#from services.DcmHandler.MegaDCM import UseDicom
 
 class ReportGenerator():
     def __init__(self, image_pixel_array, dicom_metadata, report_out_path):
@@ -86,9 +86,13 @@ class ReportGenerator():
         print(f"Report saved as: {self.out_path}")
         
 if __name__ == "__main__":
+    
+    """
     dcm_path='./temp.dcm'
     dcm = UseDicom(dcm_path)
     img = dcm.get_image_pixel_array()
     meta = dcm.get_metadata()
 
-    ReportGenerator(img, meta, './test.pdf').generate_report()
+    ReportGenerator(img, meta, './test.pdf').generate_report()"
+    """
+
