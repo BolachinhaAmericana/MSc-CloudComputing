@@ -1,0 +1,8 @@
+flask
+flask_restful
+torchvision.transforms 
+PIL 
+io
+cv2
+numpy
+google.cloud
