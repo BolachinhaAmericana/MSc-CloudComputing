@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+WORKDIR /inference-phase4
+
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir grpcio-tools
+
+COPY . .
+RUN apt-get update && apt-get install -y protobuf-compiler
+RUN python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. inference.proto
+
+ENV GOOGLE_APPLICATION_CREDENTIALS=/inference-phase4/credentials.json
+
+# the gRPC port for inference
+EXPOSE 50051
+ENTRYPOINT ["python"]
+CMD ["server.py"]
