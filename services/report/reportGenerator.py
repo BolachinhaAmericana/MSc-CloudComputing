@@ -86,7 +86,7 @@ class ReportGenerator():
         print(f"Report saved as: {self.out_path}")
         
 if __name__ == "__main__":
-    
+    print("This is running")
     """
     dcm_path='./temp.dcm'
     dcm = UseDicom(dcm_path)

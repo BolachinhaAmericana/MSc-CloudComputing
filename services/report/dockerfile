@@ -2,10 +2,9 @@ FROM python:3.11-slim
 
 WORKDIR /report
 
-
 COPY requirements.txt .
+COPY reportGenerator.py .
 RUN pip install --no-cache-dir -r requirements.txt
-
 
 COPY . .
 
