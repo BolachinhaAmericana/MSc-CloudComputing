@@ -11,7 +11,7 @@ import cv2
 
 from MegaDCM import UseDicom, GenerateDicom
 
-class DicomServiceServicer(MegaDCM_pb2_grpc.DicomServiceServicer):
+class DICOMServiceServicer(MegaDCM_pb2_grpc.DICOMServiceServicer):
     def GetMetadata(self, request, context):
         dicom = UseDicom(request.path)
         metadata = dicom.get_metadata()
@@ -55,7 +55,7 @@ class DicomServiceServicer(MegaDCM_pb2_grpc.DicomServiceServicer):
 
 def serve():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    MegaDCM_pb2_grpc.add_DicomServiceServicer_to_server(DicomServiceServicer(), server)
+    MegaDCM_pb2_grpc.add_DICOMServiceServicer_to_server(DICOMServiceServicer(), server)
     server.add_insecure_port('[::]:50052')
     server.start()
     print("DCM server started on port 50052.")

@@ -10,7 +10,7 @@ import numpy as np
 import report_pb2
 import report_pb2_grpc
 
-from report import ReportGenerator  # Your existing ReportGenerator class
+from reportGenerator import ReportGenerator  # Your existing ReportGenerator class
 
 class ReportService(report_pb2_grpc.ReportServiceServicer):
 

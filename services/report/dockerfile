@@ -3,10 +3,16 @@ FROM python:3.11-slim
 WORKDIR /report
 
 COPY requirements.txt .
-COPY reportGenerator.py .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY report.proto .
+COPY reportGenerator.py .
+COPY server.py .
 
-ENTRYPOINT ["python"]
-CMD ["reportGenerator.py"]
+RUN python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. report.proto
+
+# Expose the gRPC port
+EXPOSE 50053
+
+# Command to run the server
+CMD ["python", "server.py"]
