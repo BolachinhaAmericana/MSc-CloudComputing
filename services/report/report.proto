@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package report;
+
+service ReportService {
+  rpc GenerateReport (ReportRequest) returns (ReportResponse);
+}
+
+message MetadataItem {
+  string key = 1;
+  string value = 2;
+}
+
+message ReportRequest {
+  bytes image = 1;                    // PNG encoded pixel array
+  repeated MetadataItem metadata = 2; // DICOM metadata
+  string output_filename = 3;         // Optional: output PDF path on server
+}
+
+message ReportResponse {
+  bool success = 1;
+  string message = 2; // Can include full server-side path or error message
+}
