@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+package dcm;
+
+service DICOMService {
+  // Client sends a DICOM file path, server returns metadata.
+  rpc GetMetadata (DICOMPathRequest) returns (MetadataResponse);
+
+  // Client sends a DICOM file path, server returns the raw pixel array as bytes.
+  rpc GetImagePixelArray (DICOMPathRequest) returns (ImageArrayResponse);
+
+  // Client sends metadata + image path, server returns the path to the generated DICOM.
+  rpc GenerateDICOM (GenerateDICOMRequest) returns (DICOMPathResponse);
+}
+
+message DICOMPathRequest {
+  string path = 1;
+}
+
+message MetadataResponse {
+  string patient_id = 1;
+  string patient_name = 2;
+  string infer_results = 3;
+  string infer_confidence = 4;
+  string obs = 5;
+}
+
+message ImageArrayResponse {
+  bytes pixel_array = 1;
+  int32 rows = 2;
+  int32 cols = 3;
+}
+
+message GenerateDICOMRequest {
+  string image_path = 1;
+  string output_path = 2;
+  string patient_id = 3;
+  string patient_name = 4;
+  string inference_result = 5;
+  string inference_confidence = 6;
+  string obs = 7;
+}
+
+message DICOMPathResponse {
+  string path = 1;
+}
