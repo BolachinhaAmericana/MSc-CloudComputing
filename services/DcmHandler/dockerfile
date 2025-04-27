@@ -2,12 +2,19 @@ FROM python:3.11-slim
 
 WORKDIR /DcmHandler
 
-
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY MegaDCM.py .
+COPY server.py .
+COPY MegaDCM.proto .
 
+RUN pip install --no-cache-dir -r requirements.txt
+RUN apt-get update && apt-get install -y libgl1
+RUN apt-get update && apt-get install -y libglib2.0-0
 
 COPY . .
 
-ENTRYPOINT ["python"]
-CMD ["MegaDCM.py"]
+RUN python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. MegaDCM.proto
+
+EXPOSE 50052
+#ENTRYPOINT ["python"]
+CMD ["python", "server.py"]
