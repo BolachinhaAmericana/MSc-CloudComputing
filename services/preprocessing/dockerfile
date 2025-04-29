@@ -1,0 +1,12 @@
+FROM python:3
+WORKDIR /app
+COPY requirements_preprocessing.txt .
+RUN pip install -r requirements_preprocessing.txt && pip install grpcio grpcio-tools
+COPY preprocessing.proto .
+RUN python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. preprocessing.proto
+COPY Phase4.py test.py .
+COPY gcp-credentials.json /app/gcp-credentials.json
+#COPY . .
+EXPOSE 50050
+#ENTRYPOINT ["python"]
+CMD ["python", "Phase4.py"]

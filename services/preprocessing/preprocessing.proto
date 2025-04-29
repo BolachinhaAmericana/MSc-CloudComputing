@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package preprocessing;
+
+service Preprocessor {
+  rpc Process (ProcessRequest) returns (ProcessResponse);
+}
+
+message ProcessRequest { 
+    bytes image_data = 1; 
+    string user_id = 2;  // 
+    int32 rows = 3;
+    int32 cols = 4;
+}
+
+message ProcessResponse { 
+    bytes tensor_data = 1; 
+    string gcs_path = 2; 
+}
