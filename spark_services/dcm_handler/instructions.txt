@@ -1,0 +1,7 @@
+docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash
+
+apt-get update && apt-get upgrade
+<run dockerfile and requirenments>
+
+#run pytho file with pyspark
+spark-submit --jars /opt/spark/jars/gcs-connector-hadoop3-latest.jar <python file>
