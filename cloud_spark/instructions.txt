@@ -1,6 +1,9 @@
 docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash
 
 apt-get update && apt-get upgrade
+apt-get update && apt-get install -y libgl1 
+apt-get update && apt-get install -y libglib2.0-0 
+
 pip install --no-cache-dir -r requirements.txt
 
 mkdir -p /opt/spark/jars
