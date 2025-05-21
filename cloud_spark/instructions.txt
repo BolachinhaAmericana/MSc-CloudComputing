@@ -1,7 +1,7 @@
 docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash
 
 apt-get update && apt-get upgrade
-RUN pip install --no-cache-dir -r requirements.txt
+pip install --no-cache-dir -r requirements.txt
 
 mkdir -p /opt/spark/jars
 curl -o /opt/spark/jars/gcs-connector-hadoop3-latest.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop3-latest.jar
