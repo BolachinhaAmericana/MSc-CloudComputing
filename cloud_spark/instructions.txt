@@ -1,6 +1,14 @@
-# sudo docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash (na VM SSH browrser)
+# No terminal da VM
+sudo apt-get update
+sudo apt install -y docker.io
+sudo systemctl start docker
+sudo systemctl enable docker
+sudo docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash (na VM SSH browrser)
+
+
 docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash
 
+# Dentro do terminal da imagem
 apt-get update && apt-get upgrade
 apt-get update && apt-get install -y libgl1 
 apt-get update && apt-get install -y libglib2.0-0 
