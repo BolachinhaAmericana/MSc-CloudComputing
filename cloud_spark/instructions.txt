@@ -1,3 +1,4 @@
+# sudo docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash (na VM SSH browrser)
 docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash
 
 apt-get update && apt-get upgrade
