@@ -5,6 +5,10 @@ sudo systemctl start docker
 sudo systemctl enable docker
 sudo docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash (na VM SSH browrser)
 
+#No shell da GCP
+gcloud compute scp --recurse /home/heltonbcv41/spark_container test-spark:~/ --zone europe-north1-b
+// substituit csminho pro folder do spark container e zona se necessario
+
 
 docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash
 
