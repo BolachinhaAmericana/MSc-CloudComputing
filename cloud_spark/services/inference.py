@@ -124,15 +124,18 @@ class SparkInferenceService:
     """
     Service class for running inference on preprocessed images using Spark.
     """
-    def __init__(self, app_name="X-Ray Inference with Spark"):
+    def __init__(self,spark, app_name="X-Ray Inference with Spark"):
         """Initialize Spark session and configuration"""
-        self.spark = (SparkSession.builder
-                     .appName(app_name)
-                     .config("spark.executor.memory", "4g") 
-                     .config("spark.driver.memory", "2g")
-                     .config("spark.python.worker.memory", "2g")
-                     .config("spark.executor.cores", "2")
-                     .getOrCreate())
+        # self.spark = (SparkSession.builder
+        #              .appName(app_name)
+        #              .config("spark.executor.memory", "4g") 
+        #              .config("spark.driver.memory", "2g")
+        #              .config("spark.python.worker.memory", "2g")
+        #              .config("spark.executor.cores", "2")
+        #              .getOrCreate())
+        self.spark = spark
+
+        self.spark.sparkContext.setLogLevel("ERROR")
     
     def run_inference(self, preprocessed_df):
         """
@@ -144,6 +147,9 @@ class SparkInferenceService:
         Returns:
             DataFrame with original data plus inference results
         """
+
+        """ Old version """
+
         if preprocessed_df is None:
             print("No preprocessed dataframe provided")
             return None
@@ -170,14 +176,16 @@ class SparkInferenceService:
             col("metadata"),
             col("image_data_bytes"),
             col("image_shape"),
-            col("processed_tensor"),
-            col("processed_png"),
-            col("inference_result.predicted_class").alias("prediction"),
-            col("inference_result.confidence").alias("confidence")
+            col("inference_result.predicted_class").alias("prediction"), # Only nuclear to send
+            col("inference_result.confidence").alias("confidence") # Only nuclear to send
         )
         
         print(f"Completed inference on {result_df.count()} images")
         return result_df
+
+       
+
+        
     
     def display_inference_results(self, inference_df, num_samples=2):
         """
@@ -290,7 +298,7 @@ def main():
             col("metadata.patient_id"), 
             col("prediction"),
             col("confidence")
-        ).show(10, truncate=False)
+        ).show(5, truncate=50)
         
         # Display sample images with predictions
         print("\nDisplaying sample predictions...")
