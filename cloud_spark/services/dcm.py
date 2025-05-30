@@ -57,10 +57,26 @@ def _fetch_and_process_dicom_from_gcs_worker(gcs_path_str: str):
         return (error_metadata, None, None)
 
 class SparkDicomProcessor:
-    def __init__(self, app_name="DICOM Processing from GCS with Spark", gcs_bucket_name=None, gcs_prefix="", credentials_path=None):
-        self.spark = SparkSession.builder.appName(app_name).getOrCreate()
+    def __init__(self, spark, app_name="DICOM Processing from GCS with Spark", gcs_bucket_name=None, gcs_prefix="", credentials_path=None, batch_size=50, max_images=640):
+        """
+        Initialize SparkDicomProcessor with batching and capping parameters.
+        
+        Args:
+            spark: SparkSession object
+            app_name: Name of the Spark application
+            gcs_bucket_name: Name of the GCS bucket
+            gcs_prefix: Prefix for file listing in GCS
+            credentials_path: Path to GCS credentials file
+            batch_size: Number of images to process per batch (default: 50)
+            max_images: Maximum number of images to process (default: 640)
+        """
+        self.spark = spark
         self.gcs_bucket_name = gcs_bucket_name
         self.gcs_prefix = gcs_prefix
+        self.batch_size = batch_size
+        self.max_images = max_images
+        
+        self.spark.sparkContext.setLogLevel("ERROR")
         
         # Use provided credentials path or default
         self.credentials_path = credentials_path or CREDENTIALS_PATH
@@ -70,7 +86,7 @@ class SparkDicomProcessor:
             credentials_content = f.read()
         self.credentials_content = self.spark.sparkContext.broadcast(credentials_content)
         
-        # This storage_client is for driver-side operations like listing files
+        # Storage client for driver-side operations
         credentials = service_account.Credentials.from_service_account_file(self.credentials_path)
         self.storage_client = storage.Client(credentials=credentials)
 
@@ -89,13 +105,13 @@ class SparkDicomProcessor:
             patient_id = metadata_dict.get('PatientID', '')
             patient_name = metadata_dict.get('PatientName', '')
             series_description = metadata_dict.get('SeriesDescription', '')
-
+            
             extracted_metadata = {
                 "patient_id": patient_id,
                 "patient_name": patient_name,
                 "obs": series_description,
             }
-
+            
             if not hasattr(dcm, 'file_meta') or dcm.file_meta is None:
                 dcm.file_meta = FileMetaDataset()
             if not hasattr(dcm.file_meta, 'TransferSyntaxUID') or not dcm.file_meta.TransferSyntaxUID:
@@ -104,43 +120,60 @@ class SparkDicomProcessor:
             pixel_array = dcm.pixel_array
             image_data_bytes = pixel_array.tobytes()
             image_shape = list(pixel_array.shape)
-
+            
             return (extracted_metadata, image_data_bytes, image_shape)
         except Exception as e:
             return ({"error": str(e), "patient_id": "", "patient_name": "", "obs": ""}, None, None)
 
-    def _list_dicom_files_gcs(self):
+    def list_dicom_files(self, max_images=None):
+        """
+        List DICOM files in GCS bucket, up to max_images.
+        
+        Args:
+            max_images: Maximum number of .dcm files to return (optional)
+        
+        Returns:
+            List of GCS paths to .dcm files
+        """
         if not self.gcs_bucket_name:
             raise ValueError("GCS bucket name must be provided.")
         
+        max_images = max_images if max_images is not None else self.max_images
         blobs = self.storage_client.list_blobs(self.gcs_bucket_name, prefix=self.gcs_prefix)
         dicom_file_gcs_paths = []
         for blob in blobs:
             if blob.name.lower().endswith(".dcm"):
                 dicom_file_gcs_paths.append(f"gs://{self.gcs_bucket_name}/{blob.name}")
+                if max_images and len(dicom_file_gcs_paths) >= max_images:
+                    break
         return dicom_file_gcs_paths
 
-    def process_dicoms(self):
-        dicom_file_gcs_paths = self._list_dicom_files_gcs()
-
-        if not dicom_file_gcs_paths:
-            print(f"No .dcm files found in gs://{self.gcs_bucket_name}/{self.gcs_prefix}")
+    def process_file_paths(self, file_paths):
+        """
+        Process a list of DICOM file paths and return a DataFrame.
+        
+        Args:
+            file_paths: List of GCS paths to process
+        
+        Returns:
+            Spark DataFrame with processed DICOM data
+        """
+        if not file_paths:
+            print("No file paths provided to process.")
             return None
-
-        paths_df = self.spark.createDataFrame([(path,) for path in dicom_file_gcs_paths], ["gcs_path"])
-
+        
+        paths_df = self.spark.createDataFrame([(path,) for path in file_paths], ["gcs_path"])
+        
         output_schema = StructType([
             StructField("metadata", MapType(StringType(), StringType()), True),
             StructField("image_data_bytes", BinaryType(), True),
             StructField("image_shape", ArrayType(IntegerType()), True)
         ])
         
-        # Modified UDF: Use the top-level worker function
-        # This function will instantiate its own GCS client on worker nodes
         process_dicom_udf = udf(_fetch_and_process_dicom_from_gcs_worker, output_schema)
-
+        
         processed_dicoms_df = paths_df.withColumn("processed_data", process_dicom_udf(col("gcs_path")))
-
+        
         final_df = processed_dicoms_df.select(
             col("gcs_path"),
             col("processed_data.metadata").alias("metadata"),
@@ -148,6 +181,21 @@ class SparkDicomProcessor:
             col("processed_data.image_shape").alias("image_shape")
         )
         return final_df
+
+    def process_dicoms(self):
+        """
+        Process all DICOM files up to max_images (for backward compatibility).
+        
+        Returns:
+            Spark DataFrame with processed DICOM data
+        """
+        dicom_file_gcs_paths = self.list_dicom_files()
+        
+        if not dicom_file_gcs_paths:
+            print(f"No .dcm files found in gs://{self.gcs_bucket_name}/{self.gcs_prefix}")
+            return None
+        
+        return self.process_file_paths(dicom_file_gcs_paths)
 
     def stop_spark(self):
         self.spark.stop()
@@ -161,8 +209,13 @@ def main():
     final_df = processor.process_dicoms()
 
     if final_df:
-        print("Showing processed DICOM data (first 20 rows):")
-        final_df.show(truncate=False)
+        print("Showing processed DICOM data (first 5 rows):")
+        final_df.show(n=5, truncate=50)
+
+    # print("Spark configuration:")
+    # for k, v in processor.spark.sparkContext.getConf().getAll():
+    #     if 'memory' in k or 'cores' in k:
+    #         print(f"{k}: {v}")
             
     processor.stop_spark()
 
