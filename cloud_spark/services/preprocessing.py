@@ -95,25 +95,30 @@ def upload_processed_image_to_gcs(png_bytes, gcs_path):
         return False
 
 class SparkImagePreprocessor:
-    def __init__(self, app_name="DICOM Image Preprocessing with Spark", output_bucket="xray-bucket-fcul"):
+    def __init__(self,spark, app_name="DICOM Image Preprocessing with Spark", output_bucket="xray-bucket-fcul"):
         """
         Initialize Spark session and configure preprocessing service
         """
-        self.spark = (SparkSession.builder
-                     .appName(app_name)
-                     .config("spark.executor.memory", "4g")
-                     .config("spark.driver.memory", "2g") 
-                     .config("spark.python.worker.memory", "1g")
-                     .config("spark.executor.cores", "2")
-                     .getOrCreate())
+        # self.spark = (SparkSession.builder
+        #              .appName(app_name)
+        #              .config("spark.executor.memory", "4g")
+        #              .config("spark.driver.memory", "2g") 
+        #              .config("spark.python.worker.memory", "1g")
+        #              .config("spark.executor.cores", "2")
+        #              .getOrCreate())
+        self.spark = spark
                      
         self.output_bucket = output_bucket
+
+        self.spark.sparkContext.setLogLevel("ERROR")
         
     def preprocess_images(self, dicom_df):
         """
         Process a dataframe of DICOM images (from SparkDicomProcessor)
         Returns a dataframe with original data + processed images
         """
+
+        """ Old version """
         if dicom_df is None:
             print("No DICOM dataframe provided")
             return None
@@ -143,12 +148,13 @@ class SparkImagePreprocessor:
             col("metadata"),
             col("image_data_bytes"),
             col("image_shape"),
-            col("processed_image.tensor_bytes").alias("processed_tensor"),
-            col("processed_image.png_bytes").alias("processed_png")
+            col("processed_image.tensor_bytes").alias("processed_tensor") # only nuclear to send
         )
         
         print(f"Processed {final_df.count()} images")
         return final_df
+
+        
 
     def display_sample_image(self, processed_df, num_samples=1):
         """
