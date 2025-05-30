@@ -54,12 +54,17 @@ class SparkReportService:
             "confidence"
         ).coalesce(8)
 
-        # total = report_df.count()
+        total_count = report_df.count()
         # print(f"[Report] Total rows to process: {total} across 8 partitions")
 
         bucket_name = self.reports_bucket_name
 
         def process_partition(rows):
+            import numpy as np
+            from PIL import Image
+            from reportlab.lib.units import inch
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.pagesizes import letter
             client = create_authenticated_storage_client()
             bucket = client.bucket(bucket_name)
             count = 0
@@ -69,12 +74,15 @@ class SparkReportService:
                 meta = row.metadata or {}
                 pred = row.prediction
                 conf = row.confidence
-                img_bytes = row.image_array_bytes
+                img_bytes = row.image_data_bytes
                 shape = row.image_shape
 
                 if img_bytes is None or shape is None:
                     print(f"[Report WARNING] Skipping {path} due to missing image_array_bytes/shape")
                     continue
+                # Initialize temporary path variables
+                tmp_img_path = None
+                tmp_pdf_path = None
 
                 try:
                     # Reconstruct image array from bytes and shape
@@ -157,7 +165,7 @@ class SparkReportService:
         uploaded = sum(per_part)
         # print(f"[Report] ✅ Uploaded {uploaded}/{total} reports")
         # print(f"[Report] Check gs://{bucket_name}/reports/")
-        logging.info(f"Processed {count} reports")
+        logging.info(f"Processed {total_count} reports")
     """ Outras tentativas a meter o spark a funcionar (usando json,txt,etc) """
 
     # def run_report(self, inference_df):
@@ -259,12 +267,12 @@ def main():
         
         # Step 1: DICOM processing
         print("\n[Pipeline] Step 1: Processing DICOM files...")
-        dicom_handler = SparkDicomProcessor(
+        dcm_handler = SparkDicomProcessor(
         spark,
         gcs_bucket_name="msc-g21-dcm_data",
         gcs_prefix="",
         credentials_path="./secrets.json",
-        batch_size=20, # 100, 80,50, did not work. 20 worked for 5 batches
+        batch_size=10, # 100, 80,50, did not work. 20 worked for 5 batches, I will use 10 for good measure
         max_images=100  # Over 100 images seems to be the limit, try it out tho
     )   
 
