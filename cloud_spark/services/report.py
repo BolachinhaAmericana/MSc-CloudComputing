@@ -218,7 +218,7 @@ class SparkReportService:
 
 
 
-def main():
+def main(max_images_user:int,batch_size_user:int):
     """Main function to demonstrate the complete pipeline"""
     # It's highly recommended to create ONE SparkSession here and pass it to services.
     # For now, we'll follow the user's structure where each service creates its own.
@@ -272,9 +272,14 @@ def main():
         gcs_bucket_name="msc-g21-dcm_data",
         gcs_prefix="",
         credentials_path="./secrets.json",
-        batch_size=10, # 100, 80,50, did not work. 20 worked for 5 batches, I will use 10 for good measure
-        max_images=100  # Over 100 images seems to be the limit, try it out tho
+        batch_size=batch_size_user, # 100, 80,50, did not work. 20 worked for 5 batches, I will use 10 for good measure
+        max_images=max_images_user  # Over 100 images seems to be the limit, try it out tho
     )   
+
+        assert 0<dcm_handler.max_images<101
+        assert 1<dcm_handler.batch_size<=20
+        
+
 
         preprocessor = SparkImagePreprocessor(spark)
         inference_service = SparkInferenceService(spark)
@@ -293,7 +298,9 @@ def main():
             inference_df = inference_service.run_inference(preprocessed_df)
             report_service.run_report(inference_df)
 
-
+    except AssertionError as e:
+        logging.error(f"Assertion error: {e}")
+        raise
     except Exception as e:
         logging.error(f"Pipeline error: {e}")
         raise
