@@ -1,0 +1,63 @@
+# WE NEED TO ADAPT THIS TO OUR CURRENT DEPLOYMENT.YAML SO IT USES FLASK BUT RUNS THE SPARK SUBMIT --- IN BASH TERMINAL JUST TO MAKE SURE IT WORKS
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xray-app
+spec:
+  replicas: 1 # Start with 1 replica for a stateful Spark application, can be adjusted.
+              # If Spark runs in cluster mode and not local, replicas can be > 1 for Flask app itself.
+              # But since Spark runs inside the pod, each pod is a full Spark app instance.
+  selector:
+    matchLabels:
+      app: xray-app
+  template:
+    metadata:
+      labels:
+        app: xray-app
+    spec:
+      serviceAccountName: xray-app-sa # Ensure this SA has GCS access
+      containers:
+      - name: spark-flask-app # Renamed for clarity
+        image: gcr.io/cloud-computing-project-2025/spark_container # Your existing image
+        # Command to run the Flask application.
+        # Ensure main.py is executable or called with python.
+        # The Dockerfile CMD is ["/bin/bash"], so we specify the command here.
+        command: ["python", "/opt/spark/work-dir/main.py"]
+        ports:
+        - containerPort: 5000 # Port Flask app listens on (defined in main.py)
+        resources:
+          requests:
+            memory: "14Gi" # Increased driver memory for Spark, adjust based on Spark config in report.py
+            cpu: "1"      # Spark driver can use more CPU
+          limits:
+            memory: "15Gi" # Ensure this is above spark.driver.memory + Python overhead
+            cpu: "2"
+        env:
+        - name: PYTHONUNBUFFERED
+          value: "1" # Ensures Python logs are sent straight to stdout for kubectl logs
+        # If secrets.json needs to be mounted via Kubernetes secrets (recommended):
+        # volumeMounts:
+        # - name: gcp-secrets
+        #   mountPath: "/opt/spark/work-dir/secrets.json"
+        #   subPath: secrets.json # Assuming key in secret is secrets.json
+        #   readOnly: true
+      # volumes:
+      #   - name: gcp-secrets
+      #     secret:
+      #       secretName: my-gcp-secret # Name of your K8s secret containing secrets.json
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: xray-app-service
+spec:
+  selector:
+    app: xray-app # Must match the labels of your Deployment's Pods
+  ports:
+    - protocol: TCP
+      port: 80 # Port the service will be available on
+      targetPort: 5000 # Port the container (Flask app) is listening on
+  type: LoadBalancer # Creates an external IP for cloud environments (e.g., GKE, EKS, AKS)
+                    # For Minikube or local clusters, you might use NodePort and access via <NodeIP>:<NodePort>
+                    # If LoadBalancer, it might take a few minutes for External IP to be available.
