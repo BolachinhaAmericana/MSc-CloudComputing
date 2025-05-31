@@ -1,0 +1,27 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xray-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: xray-app
+  template:
+    metadata:
+      labels:
+        app: xray-app
+    spec:
+      serviceAccountName: xray-app-sa  # Added
+      containers:
+      - name: spark-app
+        image: gcr.io/cloud-computing-project-2025/spark_container
+        command: ["/bin/bash", "-c", "spark-submit --jars /opt/spark/jars/gcs-connector-hadoop3-latest.jar /opt/spark/work-dir/report.py"]
+        resources:
+          requests:
+            memory: "2Gi"
+            cpu: "500m"
+          limits:
+            memory: "4Gi"
+            cpu: "1"
+  

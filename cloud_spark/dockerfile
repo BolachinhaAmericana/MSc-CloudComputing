@@ -1,0 +1,26 @@
+
+FROM apache/spark-py
+
+USER root
+
+# Install system dependencies
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y libgl1 libglib2.0-0
+
+# Install Python dependencies
+COPY requirements.txt /opt/spark/work-dir/
+RUN pip install --no-cache-dir -r /opt/spark/work-dir/requirements.txt
+
+# Download GCS connector
+RUN mkdir -p /opt/spark/jars && \
+    curl -o /opt/spark/jars/gcs-connector-hadoop3-latest.jar \
+    https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop3-latest.jar
+
+# Set working directory
+WORKDIR /opt/spark/work-dir
+
+# Copy all Python scripts and secrets.json
+COPY main.py dcm.py preprocessing.py inference.py report.py report_no_spark.py secrets.json /opt/spark/work-dir/
+
+# Default command: open bash shell
+CMD ["/bin/bash"]
