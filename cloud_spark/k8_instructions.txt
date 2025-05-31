@@ -1,0 +1,11 @@
+1) Create a k8 cluster with 2vCPU and 8GB RAM (in a near region like europe west)
+2) Enable workload identity, put the GET_METADATA (ask AI)
+3) Bind the inference service account to the cluster (ask AI)
+4) Put the right roles, object viewe, artifact reader in the service account if needed
+
+
+then:
+kubectl apply -f deployment.yaml #in the folder with the yaml
+kubectl get svc xray-app-service
+
+Any doubsts ask AI its not that hard to get everything jsut a bit of patience
