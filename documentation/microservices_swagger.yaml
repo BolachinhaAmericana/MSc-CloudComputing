@@ -75,7 +75,7 @@ paths:
                 type: string
               example: |
                 HTML form with pipeline configuration options:
-                - Max images (1-101)
+                - Max images (1-100)
                 - Batch size (2-20)
                 - Start/Stop controls
                 - Real-time status display
@@ -376,7 +376,7 @@ paths:
         ```
         
         **Parameter Validation**:
-        - max_images: Must be between 1 and 101
+        - max_images: Must be between 1 and 100
         - batch_size: Must be between 2 and 20
         
         **Integration Points**:
@@ -397,7 +397,7 @@ paths:
                 max_images:
                   type: integer
                   minimum: 1
-                  maximum: 101
+                  maximum: 100
                 batch_size:
                   type: integer
                   minimum: 2
@@ -428,7 +428,7 @@ components:
         max_images:
           type: integer
           minimum: 1
-          maximum: 101
+          maximum: 100
           description: Maximum number of DICOM images to process
         batch_size:
           type: integer

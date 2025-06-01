@@ -94,7 +94,7 @@ paths:
                 max_images:
                   type: integer
                   minimum: 1
-                  maximum: 101
+                  maximum: 100
                   description: Maximum number of DICOM images to process
                   example: 10
                 batch_size:
@@ -120,7 +120,7 @@ paths:
                 type: string
                 example: |
                   <div class="error">
-                    <strong>Error:</strong> Max Images must be between 1 and 101.
+                    <strong>Error:</strong> Max Images must be between 1 and 100.
                   </div>
         '409':
           description: Pipeline already running
@@ -241,7 +241,7 @@ components:
         max_images:
           type: integer
           minimum: 1
-          maximum: 101
+          maximum: 100
           description: Maximum number of DICOM images to process
           example: 10
         batch_size:
@@ -355,7 +355,7 @@ x-configuration:
     processed_images: xray-bucket-fcul
   
   constraints:
-    max_images: 1-101
+    max_images: 1-100
     batch_size: 2-20
     image_size: 224x224
     supported_formats:
