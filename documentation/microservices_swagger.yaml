@@ -1,0 +1,617 @@
+openapi: 3.0.3
+info:
+  title: X-Ray Analysis Microservices API
+  description: |
+    Individual microservices documentation for the X-Ray Analysis Pipeline.
+    
+    This specification documents each microservice component that makes up the complete 
+    X-Ray analysis pipeline for pneumonia detection in medical DICOM images.
+    
+    ## Architecture Overview
+    The system consists of 6 independent services that work together:
+    
+    1. **Main Service** - Web interface and pipeline orchestration
+    2. **DCM Service** - DICOM file processing and metadata extraction
+    3. **Preprocessing Service** - Image preprocessing for ML inference
+    4. **Inference Service** - AI-powered pneumonia detection
+    5. **Report Service** - PDF report generation
+    6. **Spark Runner** - Command-line pipeline execution
+    
+    ## Technology Stack
+    - **Framework**: Flask, Apache Spark
+    - **ML/AI**: PyTorch, torchxrayvision, DenseNet121
+    - **Storage**: Google Cloud Storage
+    - **Processing**: Distributed computing with Spark
+    - **Output**: PDF reports, JSON status
+  version: 1.0.0
+  contact:
+    name: MSc Cloud Computing Team
+    email: team@xray-pipeline.com
+
+servers:
+  - url: http://localhost:5000
+    description: Main service (Flask web interface)
+  - url: http://localhost:8080
+    description: Internal services communication port
+
+tags:
+  - name: Main Service
+    description: Web interface and pipeline orchestration (main.py)
+  - name: DCM Service
+    description: DICOM file processing service (dcm.py)
+  - name: Preprocessing Service
+    description: Image preprocessing service (preprocessing.py)
+  - name: Inference Service
+    description: AI inference service (inference.py)
+  - name: Report Service
+    description: PDF report generation service (report.py)
+  - name: Spark Runner
+    description: Command-line interface (spark_runner.py)
+
+paths:
+  # MAIN SERVICE ENDPOINTS
+  /:
+    get:
+      tags:
+        - Main Service
+      summary: "[MAIN] Get pipeline web interface"
+      description: |
+        **Service**: main.py - Flask web application
+        
+        **Purpose**: Serves the main HTML interface for configuring and monitoring the X-Ray analysis pipeline.
+        
+        **Functionality**:
+        - Displays interactive web form for pipeline configuration
+        - Shows real-time pipeline status and progress
+        - Provides auto-refresh capability for live updates
+        - Handles user input validation
+      operationId: getMainInterface
+      responses:
+        '200':
+          description: Interactive HTML pipeline interface
+          content:
+            text/html:
+              schema:
+                type: string
+              example: |
+                HTML form with pipeline configuration options:
+                - Max images (1-101)
+                - Batch size (2-20)
+                - Start/Stop controls
+                - Real-time status display
+
+  /run_pipeline:
+    post:
+      tags:
+        - Main Service
+      summary: "[MAIN] Orchestrate complete pipeline execution"
+      description: |
+        **Service**: main.py - Pipeline orchestrator
+        
+        **Purpose**: Initiates and manages the complete X-Ray analysis pipeline execution.
+        
+        **What it does**:
+        1. Validates input parameters (max_images, batch_size)
+        2. Starts Spark job using spark-submit command
+        3. Monitors pipeline progress across all services
+        4. Manages job status and progress tracking
+        5. Handles error conditions and cleanup
+        
+        **Internal Process**:
+        - Calls spark_runner.py with specified parameters
+        - Coordinates DCM → Preprocessing → Inference → Report services
+        - Provides real-time progress updates
+      operationId: orchestratePipeline
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PipelineConfig'
+      responses:
+        '200':
+          description: Pipeline orchestration started
+          content:
+            text/html:
+              schema:
+                type: string
+        '400':
+          description: Invalid configuration parameters
+        '409':
+          description: Pipeline already running
+
+  /status:
+    get:
+      tags:
+        - Main Service
+      summary: "[MAIN] Get real-time pipeline status"
+      description: |
+        **Service**: main.py - Status monitoring
+        
+        **Purpose**: Provides real-time status information about the running pipeline.
+        
+        **Status Information**:
+        - Current pipeline phase (DCM, preprocessing, inference, reporting)
+        - Progress percentage and batch information
+        - Number of images processed vs. total
+        - Error messages and diagnostics
+        - Execution timing and performance metrics
+      operationId: getPipelineStatus
+      responses:
+        '200':
+          description: Current pipeline status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineStatus'
+
+  # DCM SERVICE (Internal Spark Service)
+  /dcm/process:
+    post:
+      tags:
+        - DCM Service
+      summary: "[DCM] Process DICOM files from Google Cloud Storage"
+      description: |
+        **Service**: dcm.py - SparkDicomProcessor class
+        
+        **Purpose**: Reads, processes, and extracts metadata from DICOM medical image files.
+        
+        **Core Functionality**:
+        - **GCS Integration**: Connects to Google Cloud Storage using authenticated client
+        - **DICOM Reading**: Uses pydicom library to parse .dcm files
+        - **Metadata Extraction**: Extracts patient information, study details, and image properties
+        - **Image Processing**: Converts DICOM pixel arrays to processable format
+        - **Batch Processing**: Processes files in configurable batches for memory efficiency
+        
+        **Key Operations**:
+        1. List DICOM files in GCS bucket (up to max_images limit)
+        2. Download DICOM bytes from cloud storage
+        3. Extract metadata (PatientID, PatientName, SeriesDescription, etc.)
+        4. Convert pixel arrays to binary format for downstream processing
+        5. Return structured DataFrame with paths, metadata, and image data
+        
+        **Output Schema**: gcs_path, metadata, image_data_bytes, image_shape
+      operationId: processDicomFiles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                gcs_bucket:
+                  type: string
+                  example: "msc-g21-dcm_data"
+                gcs_prefix:
+                  type: string
+                  example: ""
+                max_images:
+                  type: integer
+                  example: 10
+                batch_size:
+                  type: integer
+                  example: 5
+      responses:
+        '200':
+          description: DICOM files processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DicomProcessingResult'
+
+  # PREPROCESSING SERVICE (Internal Spark Service)
+  /preprocessing/transform:
+    post:
+      tags:
+        - Preprocessing Service
+      summary: "[PREPROCESSING] Transform DICOM images for ML inference"
+      description: |
+        **Service**: preprocessing.py - SparkImagePreprocessor class
+        
+        **Purpose**: Prepares raw DICOM images for machine learning model inference.
+        
+        **Image Transformation Pipeline**:
+        1. **Resize**: Standardize images to 224x224 pixels (model input requirement)
+        2. **Grayscale Conversion**: Convert to single-channel grayscale
+        3. **Gaussian Blur**: Apply blur filter (5x5 kernel) for noise reduction
+        4. **Histogram Equalization**: Enhance contrast and normalize intensity distribution
+        5. **Tensor Conversion**: Convert to PyTorch tensor format
+        6. **Normalization**: Scale pixel values to [-1, 1] range for model compatibility
+        
+        **Technical Details**:
+        - Uses torchvision transforms for standardized preprocessing
+        - Handles various DICOM pixel data types (uint16, etc.)
+        - Preserves image quality while optimizing for model performance
+        - Generates both tensor data for inference and PNG images for visualization
+        
+        **Memory Optimization**:
+        - Processes images in batches to manage memory usage
+        - Efficient binary serialization of tensor data
+        - Cleanup of intermediate processing artifacts
+      operationId: preprocessImages
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dicom_dataframe:
+                  type: string
+                  description: Reference to Spark DataFrame with DICOM data
+      responses:
+        '200':
+          description: Images preprocessed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreprocessingResult'
+
+  # INFERENCE SERVICE (Internal Spark Service)  
+  /inference/predict:
+    post:
+      tags:
+        - Inference Service
+      summary: "[INFERENCE] AI-powered pneumonia detection"
+      description: |
+        **Service**: inference.py - SparkInferenceService class
+        
+        **Purpose**: Performs AI-powered pneumonia detection on preprocessed X-ray images.
+        
+        **Machine Learning Model**:
+        - **Architecture**: DenseNet121 with custom binary classifier
+        - **Base Model**: Pre-trained on chest X-ray data (torchxrayvision)
+        - **Custom Classifier**: Fine-tuned for pneumonia vs. normal classification
+        - **Model Storage**: Loaded from Google Cloud Storage (bucket: pneumonia-models)
+        
+        **Inference Process**:
+        1. **Model Loading**: Downloads trained model weights from GCS
+        2. **Tensor Processing**: Reconstructs image tensors from preprocessed bytes
+        3. **Forward Pass**: Runs inference through DenseNet121 network
+        4. **Classification**: Applies softmax for probability distribution
+        5. **Result Generation**: Returns class prediction and confidence score
+        
+        **Output Classes**:
+        - **NORMAL**: No pneumonia detected
+        - **PNEUMONIA**: Pneumonia detected
+        
+        **Performance Features**:
+        - GPU acceleration when available (CUDA support)
+        - Batch processing for efficiency
+        - Confidence scoring (0-100%)
+        - Error handling for corrupted images
+      operationId: runInference
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preprocessed_dataframe:
+                  type: string
+                  description: Reference to Spark DataFrame with preprocessed tensors
+      responses:
+        '200':
+          description: Inference completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceResult'
+
+  # REPORT SERVICE (Internal Spark Service)
+  /report/generate:
+    post:
+      tags:
+        - Report Service
+      summary: "[REPORT] Generate comprehensive PDF reports"
+      description: |
+        **Service**: report.py - SparkReportService class
+        
+        **Purpose**: Creates detailed PDF reports for each analyzed X-ray image with results.
+        
+        **Report Generation Process**:
+        1. **Data Collection**: Gathers inference results, metadata, and original images
+        2. **PDF Creation**: Uses ReportLab library for professional PDF generation
+        3. **Content Assembly**: Combines multiple data sources into cohesive report
+        4. **Cloud Upload**: Stores generated reports in Google Cloud Storage
+        
+        **Report Contents**:
+        - **Header**: DICOM Report title and branding
+        - **Patient Information**: 
+          - Patient ID and name
+          - Study description and metadata
+          - File source information
+        - **Image Display**: Original DICOM image (2x2 inch format)
+        - **Analysis Results**:
+          - AI prediction (NORMAL/PNEUMONIA)
+          - Confidence percentage
+          - Processing timestamp
+        
+        **Technical Features**:
+        - **Memory Management**: Efficient handling of large image datasets
+        - **Batch Processing**: Processes multiple reports in parallel
+        - **Error Handling**: Graceful handling of corrupted data
+        - **Cloud Integration**: Direct upload to GCS bucket (reports-cc-25)
+        
+        **Output Location**: gs://reports-cc-25/reports/{filename}.pdf
+      operationId: generateReports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                inference_dataframe:
+                  type: string
+                  description: Reference to Spark DataFrame with inference results
+      responses:
+        '200':
+          description: Reports generated and uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResult'
+
+  # SPARK RUNNER (Command Line Interface)
+  /spark/execute:
+    post:
+      tags:
+        - Spark Runner
+      summary: "[SPARK RUNNER] Execute complete pipeline via command line"
+      description: |
+        **Service**: spark_runner.py - Command-line interface
+        
+        **Purpose**: Provides command-line execution of the complete pipeline with argument parsing.
+        
+        **Execution Process**:
+        1. **Argument Parsing**: Validates command-line parameters (max_images, batch_size)
+        2. **Pipeline Coordination**: Calls report.main() with validated parameters
+        3. **Spark Session Management**: Handles Spark configuration and lifecycle
+        4. **Error Handling**: Provides proper exit codes and error reporting
+        
+        **Command Line Usage**:
+        ```bash
+        spark-submit --jars /opt/spark/jars/gcs-connector-hadoop3-latest.jar \
+                     spark_runner.py \
+                     --max_images 20 \
+                     --batch_size 5
+        ```
+        
+        **Parameter Validation**:
+        - max_images: Must be between 1 and 101
+        - batch_size: Must be between 2 and 20
+        
+        **Integration Points**:
+        - Called by main.py when pipeline is triggered via web interface
+        - Orchestrates the complete service chain: DCM → Preprocessing → Inference → Report
+        - Provides standardized interface for pipeline execution
+        
+        **Return Codes**:
+        - 0: Success
+        - 1: Failure (with error details)
+      operationId: executeSparkPipeline
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                max_images:
+                  type: integer
+                  minimum: 1
+                  maximum: 101
+                batch_size:
+                  type: integer
+                  minimum: 2
+                  maximum: 20
+      responses:
+        '200':
+          description: Pipeline executed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exit_code:
+                    type: integer
+                  message:
+                    type: string
+                  processed_images:
+                    type: integer
+
+components:
+  schemas:
+    PipelineConfig:
+      type: object
+      required:
+        - max_images
+        - batch_size
+      properties:
+        max_images:
+          type: integer
+          minimum: 1
+          maximum: 101
+          description: Maximum number of DICOM images to process
+        batch_size:
+          type: integer
+          minimum: 2
+          maximum: 20
+          description: Number of images to process per batch
+
+    PipelineStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [idle, running, success, error]
+        message:
+          type: string
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+        processed:
+          type: integer
+        total:
+          type: integer
+        current_batch:
+          type: integer
+        current_service:
+          type: string
+          enum: [dcm, preprocessing, inference, report]
+
+    DicomProcessingResult:
+      type: object
+      properties:
+        processed_files:
+          type: integer
+        total_files:
+          type: integer
+        dataframe_schema:
+          type: object
+          properties:
+            gcs_path:
+              type: string
+            metadata:
+              type: object
+            image_data_bytes:
+              type: string
+              format: binary
+            image_shape:
+              type: array
+              items:
+                type: integer
+
+    PreprocessingResult:
+      type: object
+      properties:
+        processed_images:
+          type: integer
+        transformations_applied:
+          type: array
+          items:
+            type: string
+        output_format:
+          type: string
+          example: "224x224 normalized tensors"
+
+    InferenceResult:
+      type: object
+      properties:
+        predictions:
+          type: array
+          items:
+            type: object
+            properties:
+              image_path:
+                type: string
+              prediction:
+                type: string
+                enum: [NORMAL, PNEUMONIA]
+              confidence:
+                type: number
+                minimum: 0
+                maximum: 100
+        model_info:
+          type: object
+          properties:
+            model_name:
+              type: string
+              example: "DenseNet121"
+            model_version:
+              type: string
+
+    ReportResult:
+      type: object
+      properties:
+        reports_generated:
+          type: integer
+        upload_location:
+          type: string
+          example: "gs://reports-cc-25/reports/"
+        report_format:
+          type: string
+          example: "PDF"
+
+# Service Configuration Documentation
+x-service-details:
+  main_service:
+    file: main.py
+    type: Flask Web Application
+    port: 5000
+    dependencies:
+      - Flask
+      - subprocess
+      - threading
+    responsibilities:
+      - Web interface hosting
+      - Pipeline orchestration
+      - Status monitoring
+      - Progress tracking
+
+  dcm_service:
+    file: dcm.py
+    type: Spark Internal Service
+    class: SparkDicomProcessor
+    dependencies:
+      - PySpark
+      - pydicom
+      - Google Cloud Storage
+    responsibilities:
+      - GCS authentication and connection
+      - DICOM file discovery and listing
+      - Metadata extraction
+      - Image data conversion
+
+  preprocessing_service:
+    file: preprocessing.py
+    type: Spark Internal Service
+    class: SparkImagePreprocessor
+    dependencies:
+      - PySpark
+      - torchvision
+      - PIL
+      - OpenCV
+    responsibilities:
+      - Image resizing and normalization
+      - Tensor conversion
+      - Batch processing optimization
+      - Memory management
+
+  inference_service:
+    file: inference.py
+    type: Spark Internal Service
+    class: SparkInferenceService
+    dependencies:
+      - PyTorch
+      - torchxrayvision
+      - PySpark
+    responsibilities:
+      - Model loading and management
+      - AI inference execution
+      - Result classification
+      - Performance optimization
+
+  report_service:
+    file: report.py
+    type: Spark Internal Service
+    class: SparkReportService
+    dependencies:
+      - ReportLab
+      - PIL
+      - Google Cloud Storage
+    responsibilities:
+      - PDF document generation
+      - Report content assembly
+      - Cloud storage upload
+      - Batch report processing
+
+  spark_runner:
+    file: spark_runner.py
+    type: Command Line Interface
+    dependencies:
+      - argparse
+      - sys
+    responsibilities:
+      - Command line argument parsing
+      - Pipeline parameter validation
+      - Service orchestration
+      - Exit code management

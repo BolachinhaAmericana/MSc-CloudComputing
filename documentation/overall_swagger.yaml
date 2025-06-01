@@ -1,0 +1,362 @@
+openapi: 3.0.3
+info:
+  title: X-Ray Analysis Pipeline API
+  description: |
+    Cloud Computing MSc Project - End-to-end pipeline for medical image analysis using distributed computing.
+    
+    This API orchestrates a complete X-Ray analysis pipeline that processes DICOM medical images 
+    using Apache Spark for distributed computing, applies machine learning models for pneumonia 
+    detection, and generates comprehensive PDF reports.
+    
+    ## Technology Stack
+    - Python
+    - Apache Spark
+    - Flask
+    - PyTorch
+    - Google Cloud Storage
+    
+    ## Pipeline Flow
+    1. **DICOM Processing** - Load and extract metadata from medical images in GCS
+    2. **Image Preprocessing** - Prepare images for ML inference (resize, normalize, etc.)
+    3. **ML Inference** - Run pneumonia detection using DenseNet121 model
+    4. **Report Generation** - Create PDF reports with results and upload to GCS
+  version: 1.0.0
+  contact:
+    name: MSc Cloud Computing Team
+    email: support@xray-pipeline.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+  - url: https://xray-pipeline.example.com
+    description: Production server
+
+tags:
+  - name: Pipeline
+    description: Main pipeline orchestration endpoints
+  - name: Status
+    description: Pipeline status monitoring
+
+paths:
+  /:
+    get:
+      tags:
+        - Pipeline
+      summary: Get pipeline configuration interface
+      description: Serves the main HTML interface for pipeline configuration with auto-refresh status
+      operationId: getPipelineInterface
+      responses:
+        '200':
+          description: HTML form for pipeline configuration
+          content:
+            text/html:
+              schema:
+                type: string
+                example: |
+                  <!DOCTYPE html>
+                  <html>
+                  <head><title>Spark Pipeline Runner</title></head>
+                  <body>
+                    <h1>Run Spark X-Ray Analysis Pipeline</h1>
+                    <form method="POST" action="/run_pipeline">
+                      <!-- Pipeline configuration form -->
+                    </form>
+                  </body>
+                  </html>
+
+  /run_pipeline:
+    post:
+      tags:
+        - Pipeline
+      summary: Start X-Ray analysis pipeline
+      description: |
+        Initiates the Spark X-Ray analysis pipeline execution with specified parameters.
+        
+        The pipeline will process DICOM images in batches and perform:
+        - DICOM file processing and metadata extraction
+        - Image preprocessing for ML inference
+        - Pneumonia detection using trained neural network
+        - PDF report generation and storage
+      operationId: runPipeline
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required:
+                - max_images
+                - batch_size
+              properties:
+                max_images:
+                  type: integer
+                  minimum: 1
+                  maximum: 101
+                  description: Maximum number of DICOM images to process
+                  example: 10
+                batch_size:
+                  type: integer
+                  minimum: 2
+                  maximum: 20
+                  description: Number of images to process per batch
+                  example: 5
+            example: max_images=10&batch_size=5
+      responses:
+        '200':
+          description: Pipeline started successfully
+          content:
+            text/html:
+              schema:
+                type: string
+                description: HTML page with pipeline status and progress information
+        '400':
+          description: Invalid input parameters
+          content:
+            text/html:
+              schema:
+                type: string
+                example: |
+                  <div class="error">
+                    <strong>Error:</strong> Max Images must be between 1 and 101.
+                  </div>
+        '409':
+          description: Pipeline already running
+          content:
+            text/html:
+              schema:
+                type: string
+                example: |
+                  <div class="error">
+                    <strong>Error:</strong> A pipeline is already running. Please wait for it to complete.
+                  </div>
+        '500':
+          description: Internal server error
+          content:
+            text/html:
+              schema:
+                type: string
+                example: |
+                  <div class="error">
+                    <strong>Error:</strong> An unexpected error occurred during pipeline initialization.
+                  </div>
+
+  /status:
+    get:
+      tags:
+        - Status
+      summary: Get pipeline status
+      description: Returns the current status of the running or last executed pipeline job
+      operationId: getPipelineStatus
+      responses:
+        '200':
+          description: Pipeline status information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineStatus'
+              examples:
+                idle:
+                  summary: Pipeline idle
+                  value:
+                    status: "idle"
+                    message: "No job run yet."
+                    progress: 0
+                    processed: 0
+                    total: 0
+                    current_batch: 0
+                running:
+                  summary: Pipeline running
+                  value:
+                    status: "running"
+                    message: "Processing batch 2 of 4 (10/20 images)"
+                    progress: 50
+                    processed: 10
+                    total: 20
+                    current_batch: 2
+                success:
+                  summary: Pipeline completed
+                  value:
+                    status: "success"
+                    message: "Pipeline completed successfully! Processed 20 images in batches of 5."
+                    progress: 100
+                    processed: 20
+                    total: 20
+                    current_batch: 4
+                error:
+                  summary: Pipeline failed
+                  value:
+                    status: "error"
+                    message: "Spark job failed with return code 1"
+                    progress: 25
+                    processed: 5
+                    total: 20
+                    current_batch: 1
+
+components:
+  schemas:
+    PipelineStatus:
+      type: object
+      required:
+        - status
+        - message
+      properties:
+        status:
+          type: string
+          enum:
+            - idle
+            - running
+            - success
+            - error
+          description: Current status of the pipeline
+        message:
+          type: string
+          description: Human-readable status message
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Progress percentage (0-100)
+        processed:
+          type: integer
+          minimum: 0
+          description: Number of images processed so far
+        total:
+          type: integer
+          minimum: 0
+          description: Total number of images to process
+        current_batch:
+          type: integer
+          minimum: 0
+          description: Current batch number being processed
+
+    PipelineConfiguration:
+      type: object
+      required:
+        - max_images
+        - batch_size
+      properties:
+        max_images:
+          type: integer
+          minimum: 1
+          maximum: 101
+          description: Maximum number of DICOM images to process
+          example: 10
+        batch_size:
+          type: integer
+          minimum: 2
+          maximum: 20
+          description: Number of images to process per batch
+          example: 5
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+          additionalProperties: true
+
+  examples:
+    PipelineConfigurationExample:
+      summary: Standard pipeline configuration
+      value:
+        max_images: 20
+        batch_size: 5
+
+# Extension for documenting internal services (not part of OpenAPI spec)
+x-internal-services:
+  dcm_service:
+    file: dcm.py
+    type: Internal Spark Service
+    description: DICOM file processing service for reading and extracting metadata from medical images stored in Google Cloud Storage
+    main_class: SparkDicomProcessor
+    key_functions:
+      - list_dicom_files
+      - process_file_paths
+      - process_dicoms
+    output_schema:
+      gcs_path: string
+      metadata: map<string,string>
+      image_data_bytes: binary
+      image_shape: array<integer>
+
+  preprocessing_service:
+    file: preprocessing.py
+    type: Internal Spark Service
+    description: Image preprocessing service that prepares DICOM images for machine learning inference
+    main_class: SparkImagePreprocessor
+    transformations:
+      - Resize to 224x224
+      - Convert to grayscale
+      - Apply Gaussian blur
+      - Apply histogram equalization
+      - Normalize for model input
+    output_schema:
+      gcs_path: string
+      metadata: map<string,string>
+      processed_tensor: binary
+
+  inference_service:
+    file: inference.py
+    type: Internal Spark Service
+    description: Machine learning inference service for pneumonia detection in X-ray images using PyTorch and torchxrayvision
+    model: DenseNet121 with custom classifier
+    classes:
+      - NORMAL
+      - PNEUMONIA
+    output_schema:
+      gcs_path: string
+      prediction: string
+      confidence: double
+
+  report_service:
+    file: report.py
+    type: Internal Spark Service
+    description: Report generation service that creates PDF reports for each analyzed X-ray image
+    output_location: gs://reports-cc-25/reports/
+    report_content:
+      - Patient metadata
+      - Original DICOM image
+      - Prediction result
+      - Confidence score
+
+  spark_runner:
+    file: spark_runner.py
+    type: Command Line Interface
+    usage: spark-submit spark_runner.py --max_images N --batch_size M
+    example_usage:
+      - spark-submit --jars /opt/spark/jars/gcs-connector-hadoop3-latest.jar spark_runner.py --max_images 10 --batch_size 5
+
+x-configuration:
+  spark_config:
+    driver_memory: 12g
+    executor_memory: 2g
+    python_worker_memory: 512m
+    executor_cores: 2
+    memory_fraction: 0.8
+    storage_fraction: 0.3
+  
+  gcs_buckets:
+    dicom_data: msc-g21-dcm_data
+    models: pneumonia-models
+    reports: reports-cc-25
+    processed_images: xray-bucket-fcul
+  
+  constraints:
+    max_images: 1-101
+    batch_size: 2-20
+    image_size: 224x224
+    supported_formats:
+      - .dcm
