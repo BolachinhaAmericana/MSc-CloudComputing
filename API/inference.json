@@ -1,0 +1,232 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Pneumonia Classification Inference API",
+    "version": "1.0.0",
+    "description": "A cloud-based inference API for pneumonia diagnosis using preprocessed X‑ray images. The service retrieves a saved model from cloud storage and uses it to classify an X‑ray image, returning the diagnosis and confidence. NOTE:  Before, this API also was related to training a DL model. We found that training was quite expensive in terms of resources so it's better to be left to be done locally or trough a cloud notebook and not necessarily as a cloud service.\n"
+  },
+  "servers": [
+    {
+      "url": "https://pneumonia-classification/v2"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Inference",
+      "description": "Endpoints for pneumonia classification inference."
+    }
+  ],
+  "paths": {
+    "/models": {
+      "get": {
+        "summary": "List all saved models",
+        "tags": [
+          "Inference"
+        ],
+        "description": "Retrieves a list of all saved model versions along with their metadata.\n",
+        "responses": {
+          "200": {
+            "description": "Saved models list retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "modelId": {
+                        "type": "string",
+                        "description": "Unique identifier for the saved model."
+                      },
+                      "modelVersion": {
+                        "type": "string",
+                        "description": "Version identifier of the model."
+                      },
+                      "createdAt": {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Timestamp when the model was saved."
+                      },
+                      "performanceMetrics": {
+                        "type": "object",
+                        "description": "Performance metrics (e.g., accuracy, loss) of the model."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No saved models found."
+          }
+        }
+      }
+    },
+    "/models/{modelID}": {
+      "get": {
+        "summary": "Retrieve a specific saved model",
+        "tags": [
+          "Inference"
+        ],
+        "description": "Retrieves a specific saved model version along with its metadata.\n",
+        "parameters": [
+          {
+            "name": "modelID",
+            "in": "path",
+            "description": "Unique identifier of the saved model.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Saved model retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "modelId": {
+                      "type": "string",
+                      "description": "Unique identifier for the saved model."
+                    },
+                    "modelVersion": {
+                      "type": "string",
+                      "description": "Version identifier of the model."
+                    },
+                    "createdAt": {
+                      "type": "string",
+                      "format": "date-time",
+                      "description": "Timestamp when the model was saved."
+                    },
+                    "performanceMetrics": {
+                      "type": "object",
+                      "description": "Performance metrics (e.g., accuracy, loss) of the model."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Saved model not found."
+          }
+        }
+      }
+    },
+    "/predict": {
+      "post": {
+        "summary": "Run pneumonia classification inference",
+        "tags": [
+          "Inference"
+        ],
+        "description": "Submits a preprocessed X‑ray image for pneumonia classification. Optionally, a query parameter `modelId` can be provided to choose a specific model version.\n",
+        "parameters": [
+          {
+            "name": "modelId",
+            "in": "query",
+            "description": "Model identifier to use for inference. If omitted, the default or latest model is used.\n",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "preprocessedImage": {
+                    "type": "string",
+                    "format": "binary",
+                    "description": "Preprocessed X‑ray image file (JPEG, PNG, or DICOM converted to image format).\n"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inference completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "patientID": {
+                      "type": "string",
+                      "description": "Patient identifier."
+                    },
+                    "prediction": {
+                      "type": "string",
+                      "description": "Diagnosis result (e.g., \"pneumonia\" or \"normal\")."
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "format": "float",
+                      "description": "Confidence score of the prediction."
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid image file."
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "SavedModel": {
+        "type": "object",
+        "properties": {
+          "modelId": {
+            "type": "string",
+            "description": "Unique identifier for the saved model."
+          },
+          "modelVersion": {
+            "type": "string",
+            "description": "Version identifier of the model."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Timestamp when the model was saved."
+          },
+          "performanceMetrics": {
+            "type": "object",
+            "description": "Performance metrics (e.g., accuracy, loss) of the model."
+          }
+        }
+      },
+      "PredictionResponse": {
+        "type": "object",
+        "properties": {
+          "patientID": {
+            "type": "string",
+            "description": "Patient identifier."
+          },
+          "prediction": {
+            "type": "string",
+            "description": "Diagnosis result (e.g., \"pneumonia\" or \"normal\")."
+          },
+          "confidence": {
+            "type": "number",
+            "format": "float",
+            "description": "Confidence score of the prediction."
+          }
+        }
+      }
+    }
+  }
+}
