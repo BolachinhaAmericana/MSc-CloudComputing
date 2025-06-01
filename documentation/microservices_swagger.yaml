@@ -1,0 +1,338 @@
+openapi: 3.0.3
+info:
+  version: 1.0.0
+  title: X-Ray Pneumonia Detection API
+  description: An API for pneumonia detection using X-Ray images 
+
+servers:
+  - url: http://localhost:5000
+    description: Main service (Flask web interface)
+  - url: http://localhost:8080
+    description: Internal services communication port
+
+tags:
+  - name: Main Service
+    description: Web interface and pipeline orchestration (main.py)
+  - name: DCM Service
+    description: DICOM file processing service (dcm.py)
+  - name: Preprocessing Service
+    description: Image preprocessing service (preprocessing.py)
+  - name: Inference Service
+    description: AI inference service (inference.py)
+  - name: Report Service
+    description: PDF report generation service (report.py)
+  - name: Spark Runner
+    description: Command-line interface (spark_runner.py)
+
+paths:
+  /:
+    get:
+      tags:
+        - Main Service
+      summary: main HTML interface for configuring
+      description: main HTML interface for configuring and monitoring the X-Ray analysis
+      operationId: getMainInterface
+      responses:
+        '200':
+          description: Interactive HTML interface
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /run_pipeline:
+    post:
+      tags:
+        - Main Service
+      summary: Orchestrates the pipeline execution end-to-end
+      description: Runs the entire X-Ray analysis pipeline from DICOM processing to report generation
+      operationId: orchestratePipeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PipelineConfig'
+      responses:
+        '200':
+          description: Starts running the pipeline
+          content:
+            text/html:
+              schema:
+                type: string
+        '400':
+          description: Invalid configuration parameters
+        '409':
+          description: Pipeline already running
+
+  /status:
+    get:
+      tags:
+        - Main Service
+      summary: Get pipeline status in real-time
+      description: Provides real-time status information about the running pipeline
+      operationId: getPipelineStatus
+      responses:
+        '200':
+          description: Current pipeline status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineStatus'
+
+  /dcm/process:
+    post:
+      tags:
+        - DCM Service
+      summary: Process DICOM files stored in Google Cloud Storage
+      description: Reads, processes, and extracts metadata from DICOM medical image files
+      operationId: processDicomFiles
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                gcs_bucket:
+                  type: string
+                  example: "msc-g21-dcm_data"
+                gcs_prefix:
+                  type: string
+                  example: ""
+                max_images:
+                  type: integer
+                  example: 10
+                batch_size:
+                  type: integer
+                  example: 5
+      responses:
+        '200':
+          description: DICOM files processed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DicomProcessingResult'
+
+  /preprocessing/transform:
+    post:
+      tags:
+        - Preprocessing Service
+      summary: Transforms DICOM images for ML inference
+      description: Prepares raw DICOM images for machine learning model inference
+      operationId: preprocessImages
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                dicom_dataframe:
+                  type: string
+                  description: Reference to Spark DataFrame with DICOM data
+      responses:
+        '200':
+          description: Images preprocessed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PreprocessingResult'
+  
+  /inference/predict:
+    post:
+      tags:
+        - Inference Service
+      summary: AI-powered pneumonia detection
+      description: Performs AI-powered pneumonia detection on preprocessed X-ray images
+      operationId: runInference
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                preprocessed_dataframe:
+                  type: string
+                  description: Reference to Spark DataFrame with preprocessed tensors
+      responses:
+        '200':
+          description: Inference completed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InferenceResult'
+
+  /report/generate:
+    post:
+      tags:
+        - Report Service
+      summary: Generates medical reports in PDF format
+      description: Creates detailed PDF reports for each analyzed X-ray image with results
+      operationId: generateReports
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                inference_dataframe:
+                  type: string
+                  description: Reference to Spark DataFrame with inference results
+      responses:
+        '200':
+          description: Reports generated and uploaded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportResult'
+
+  /spark/execute:
+    post:
+      tags:
+        - Spark Runner
+      summary: Executes the pipeline via command line
+      description: Executes the complete pipeline from the command line with custom arguments
+      operationId: executeSparkPipeline
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                max_images:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                batch_size:
+                  type: integer
+                  minimum: 2
+                  maximum: 20
+      responses:
+        '200':
+          description: Pipeline executed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  exit_code:
+                    type: integer
+                  message:
+                    type: string
+                  processed_images:
+                    type: integer
+
+components:
+  schemas:
+    PipelineConfig:
+      type: object
+      required:
+        - max_images
+        - batch_size
+      properties:
+        max_images:
+          type: integer
+          minimum: 1
+          maximum: 100
+          description: Maximum number of DICOM images to process
+        batch_size:
+          type: integer
+          minimum: 2
+          maximum: 20
+          description: Number of images to process per batch
+
+    PipelineStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [idle, running, success, error]
+        message:
+          type: string
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+        processed:
+          type: integer
+        total:
+          type: integer
+        current_batch:
+          type: integer
+        current_service:
+          type: string
+          enum: [dcm, preprocessing, inference, report]
+
+    DicomProcessingResult:
+      type: object
+      properties:
+        processed_files:
+          type: integer
+        total_files:
+          type: integer
+        dataframe_schema:
+          type: object
+          properties:
+            gcs_path:
+              type: string
+            metadata:
+              type: object
+            image_data_bytes:
+              type: string
+              format: binary
+            image_shape:
+              type: array
+              items:
+                type: integer
+
+    PreprocessingResult:
+      type: object
+      properties:
+        processed_images:
+          type: integer
+        transformations_applied:
+          type: array
+          items:
+            type: string
+        output_format:
+          type: string
+          example: "224x224 normalized tensors"
+
+    InferenceResult:
+      type: object
+      properties:
+        predictions:
+          type: array
+          items:
+            type: object
+            properties:
+              image_path:
+                type: string
+              prediction:
+                type: string
+                enum: [NORMAL, PNEUMONIA]
+              confidence:
+                type: number
+                minimum: 0
+                maximum: 100
+        model_info:
+          type: object
+          properties:
+            model_name:
+              type: string
+              example: "DenseNet121"
+            model_version:
+              type: string
+
+    ReportResult:
+      type: object
+      properties:
+        reports_generated:
+          type: integer
+        upload_location:
+          type: string
+          example: "gs://reports-cc-25/reports/"
+        report_format:
+          type: string
+          example: "PDF"
+
+
