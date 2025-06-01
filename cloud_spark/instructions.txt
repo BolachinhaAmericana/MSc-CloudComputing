@@ -1,14 +1,4 @@
-# No terminal da VM
-sudo apt-get update
-sudo apt install -y docker.io
-sudo systemctl start docker
-sudo systemctl enable docker
-sudo docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash (na VM SSH browrser)
-
-#No shell da GCP
-gcloud compute scp --recurse /home/heltonbcv41/spark_container test-spark:~/ --zone europe-north1-b
-// substituit csminho pro folder do spark container e zona se necessario
-
+#New isntructions, paster on AI to get new dockerfile:
 
 docker run -it --user 0 -v ~/spark_container:/opt/spark/work-dir apache/spark-py /bin/bash
 
@@ -23,4 +13,6 @@ mkdir -p /opt/spark/jars
 curl -o /opt/spark/jars/gcs-connector-hadoop3-latest.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop3-latest.jar
 
 #run pytho file with pyspark
-spark-submit --jars /opt/spark/jars/gcs-connector-hadoop3-latest.jar <python file>
+#spark-submit --jars /opt/spark/jars/gcs-connector-hadoop3-latest.jar <python file> -> We dont need to run this anymore, it runs inside the python script as subprocess
+
+python3 main.py 
