@@ -31,6 +31,23 @@ gcloud container clusters get-credentials xray-cluster --region europe-west4
 # Create Kubernetes service account (if not exists)
 kubectl create serviceaccount xray-app-sa --dry-run=client -o yaml | kubectl apply -f -
 
+# Check if Workload Identity is enabled for your cluster (replace your-zone with a specific zone in europe-west4, e.g., europe-west4-a)
+gcloud container clusters describe xray-cluster --zone=europe-west4-a --format="value(workloadIdentityConfig.workloadPool)"
+
+# If not enabled, enable it (this will restart your nodes).
+# Replace your-zone with a specific zone in europe-west4, e.g., europe-west4-a.
+gcloud container clusters update xray-cluster --workload-identity-config=enabled --zone=europe-west4-a
+
+kubectl annotate serviceaccount xray-app-sa \
+  iam.gke.io/gcp-service-account=inference-service-local@cloud-computing-project-2025.iam.gserviceaccount.com \
+  --overwrite
+
+gcloud iam service-accounts add-iam-policy-binding \
+  inference-service-local@cloud-computing-project-2025.iam.gserviceaccount.com \
+  --role="roles/iam.workloadIdentityUser" \
+  --member="serviceAccount:cloud-computing-project-2025.svc.id.goog[default/xray-app-sa]"
+
+
 # Install Ingress Controller
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.6.4/deploy/static/provider/cloud/deploy.yaml
 
