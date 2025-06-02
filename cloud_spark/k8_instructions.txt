@@ -9,3 +9,81 @@ kubectl apply -f deployment.yaml #in the folder with the yaml
 kubectl get svc xray-app-service
 
 Any doubsts ask AI its not that hard to get everything jsut a bit of patience
+
+#################################################################################
+
+-----
+# POWERSHELL START SCRIPT
+```powershell
+# filepath: c:\Users\jessi\Downloads\start.ps1
+# Build and push Docker image
+docker build -t gcr.io/cloud-computing-project-2025/xray-app .
+docker tag gcr.io/cloud-computing-project-2025/xray-app gcr.io/cloud-computing-project-2025/xray-app:v1
+docker push gcr.io/cloud-computing-project-2025/xray-app
+docker push gcr.io/cloud-computing-project-2025/xray-app:v1
+
+# Create GKE Autopilot cluster
+gcloud container clusters create-auto xray-cluster --region europe-west4
+
+# Get cluster credentials
+gcloud container clusters get-credentials xray-cluster --region europe-west4
+
+# Create Kubernetes service account (if not exists)
+kubectl create serviceaccount xray-app-sa --dry-run=client -o yaml | kubectl apply -f -
+
+# Install Ingress Controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.6.4/deploy/static/provider/cloud/deploy.yaml
+
+# Apply Kubernetes resources
+kubectl apply -f new_deployment.yaml
+
+# Basic checks
+kubectl get pods
+kubectl get deployments
+kubectl get hpa
+kubectl get pods -n ingress-nginx
+kubectl get svc -n ingress-nginx
+```
+-----
+# POWERSHELL STOP SCRIPT
+```powershell
+# filepath: c:\Users\jessi\Downloads\stop.ps1
+kubectl delete -f new_deployment.yaml --ignore-not-found
+
+# Delete GKE cluster
+gcloud container clusters delete xray-cluster `
+    --region europe-west4 `
+    --quiet
+
+# Delete Docker images
+docker rmi gcr.io/cloud-computing-project-2025/xray-app:v1 --force
+docker rmi $(docker images -q gcr.io/cloud-computing-project-2025/xray-app) --force 2>$null
+
+docker image prune -f
+
+Write-Output "GKE cluster and Docker images deleted."
+```
+-----
+# DOCKER COMPOSE (FOR LOCAL DEV)
+```yaml
+# filepath: c:\Users\jessi\Downloads\docker-compose.yml
+version: '3.8'
+
+services:
+  xray-app:
+    build: .
+    container_name: xray-app
+    ports:
+      - "8080:8080"
+    environment:
+      - FLASK_ENV=production
+      - PORT=8080
+    networks:
+      - xray-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/health"]
+
+networks:
+  xray-network:
+    driver: bridge
+```
