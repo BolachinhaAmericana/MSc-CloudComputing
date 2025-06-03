@@ -25,8 +25,13 @@ docker push gcr.io/cloud-computing-project-2025/xray-app:v1
 # Create GKE Autopilot cluster
 gcloud container clusters create-auto xray-cluster --region europe-west4
 
+#Façam Manual é mais rápido.
+# 2 nodes, 2vCPU + 8GB RAM, Workload identity enabled e meter o inference local service account como k8 service account
+
 # Get cluster credentials
 gcloud container clusters get-credentials xray-cluster --region europe-west4
+
+
 
 # Create Kubernetes service account (if not exists)
 kubectl create serviceaccount xray-app-sa --dry-run=client -o yaml | kubectl apply -f -
