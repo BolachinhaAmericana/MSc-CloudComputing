@@ -62,6 +62,10 @@ kubectl create secret generic gcp-credentials --from-file=key.json=path/to/your/
 # Apply Kubernetes resources
 kubectl apply -f new_deployment.yaml
 
+
+#In case of erros or changes restart deployment
+kubectl rollout restart deployment/xray-app
+
 # Basic checks
 kubectl get pods
 kubectl get deployments
