@@ -56,6 +56,9 @@ gcloud iam service-accounts add-iam-policy-binding \
 # Install Ingress Controller
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.6.4/deploy/static/provider/cloud/deploy.yaml
 
+# Create the gcp-credentials secret to have acess to the inference local json key
+kubectl create secret generic gcp-credentials --from-file=key.json=path/to/your/service-account-key.json
+
 # Apply Kubernetes resources
 kubectl apply -f new_deployment.yaml
 
