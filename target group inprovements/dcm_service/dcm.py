@@ -246,5 +246,5 @@ def main_dcm():
     print("Stopping Spark")
     processor.stop_spark()
 
-# if __name__ == "__main__":
-#     main_dcm()
+if __name__ == "__main__":
+    main_dcm()
