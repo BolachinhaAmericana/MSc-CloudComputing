@@ -1,0 +1,37 @@
+FROM apache/spark-py
+USER root
+
+# Install system dependencies
+RUN apt-get update && apt-get upgrade -y && \
+    apt-get install -y libgl1 libglib2.0-0
+
+# Install Python dependencies
+COPY requirements.txt /opt/spark/work-dir/
+RUN pip install --no-cache-dir -r /opt/spark/work-dir/requirements.txt
+
+# Download GCS connector
+RUN mkdir -p /opt/spark/jars && \
+    curl -o /opt/spark/jars/gcs-connector-hadoop3-latest.jar \
+    https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop3-latest.jar
+
+# Set working directory
+WORKDIR /opt/spark/work-dir
+
+# Copy all Python scripts (secrets.json will be mounted as volume in Kubernetes)
+COPY api.py preprocess.py secrets.json /opt/spark/work-dir/
+
+# Create logs directory for Flask app
+RUN mkdir -p /app/logs && chmod 777 /app/logs
+
+# Expose Flask application port
+EXPOSE 5001
+
+# Change default command to run Flask app
+# CMD ["/bin/bash", "spark-submit \
+#   --jars /opt/spark/jars/gcs-connector-hadoop3-latest.jar \
+#   --conf spark.hadoop.fs.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem \
+#   --conf spark.hadoop.google.cloud.auth.service.account.enable=true \
+#   --conf spark.hadoop.google.cloud.auth.service.account.json.keyfile=/opt/spark/work-dir/secrets.json \
+#   /opt/spark/work-dir/api.py"]
+
+CMD ["spark-submit", "--jars", "/opt/spark/jars/gcs-connector-hadoop3-latest.jar", "--conf", "spark.hadoop.fs.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem", "--conf", "spark.hadoop.google.cloud.auth.service.account.enable=true", "--conf", "spark.hadoop.google.cloud.auth.service.account.json.keyfile=/opt/spark/work-dir/secrets.json", "/opt/spark/work-dir/api.py"]

@@ -118,9 +118,6 @@ def main():
     # You may want to automate finding the latest folder, here is a simple static example:
     dcm_output_bucket = "dcm_output"
     dcm_output_prefix = "processed_dicoms"
-    
-    preprocess_output_bucket = "preprocess_output"
-    preprocess_output_prefix = "processed_tensors"
     # Example: gs://dcm_output/processed_dicoms/20240610183000
     # You may want to list and pick the latest, here we just use a placeholder:
     parquet_folder = f"gs://{dcm_output_bucket}/{dcm_output_prefix}/"  # Add timestamp if needed
@@ -149,7 +146,7 @@ def main():
     processed_df = preprocessor.preprocess_images(dicom_df)
     
     # Save processed DataFrame as Parquet to GCS bucket "preprocess_output"
-    output_gcs_path = f"gs://{preprocess_output_bucket}/{preprocess_output_prefix}/{datetime.now().strftime('%Y%m%d%H%M%S')}"
+    output_gcs_path = f"gs://preprocess_output/processed_tensors/{datetime.now().strftime('%Y%m%d%H%M%S')}"
     logger.info(f"Writing processed tensors to {output_gcs_path}")
     try:
         processed_df.write.mode("overwrite").parquet(output_gcs_path)
@@ -159,5 +156,5 @@ def main():
 
     preprocessor.stop_spark()
 
-if __name__ == "__main__":
-    main()
+# if __name__ == "__main__":
+#     main()
