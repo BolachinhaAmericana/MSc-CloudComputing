@@ -1,0 +1,136 @@
+# X-RAY APP KUBERNETES DEPLOYMENT, SERVICE, HPA, INGRESS, AND SCRIPTS
+
+# DEPLOYMENT
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xray-app
+  labels:
+    app: xray-app
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  selector:
+    matchLabels:
+      app: xray-app
+  template:
+    metadata:
+      labels:
+        app: xray-app
+    spec:
+      serviceAccountName: xray-app-sa
+      containers:
+        - name: xray-app
+          image: gcr.io/cloud-computing-project-2025/xray-app
+          command: ["/usr/bin/python3", "/opt/spark/work-dir/main.py"]
+          ports:
+            - containerPort: 5000
+          env:
+            - name: FLASK_ENV
+              value: "production"
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              value: "/opt/spark/work-dir/secrets.json"
+          volumeMounts:
+            - name: gcp-credentials
+              mountPath: /opt/spark/work-dir/secrets.json
+              subPath: gcp-credentials.json
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
+            failureThreshold: 30
+            periodSeconds: 10
+            initialDelaySeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 5000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "1"
+      volumes:
+        - name: gcp-credentials
+          secret:
+            secretName: gcp-credentials
+---
+# SERVICE
+apiVersion: v1
+kind: Service
+metadata:
+  name: xray-app-service
+spec:
+  selector:
+    app: xray-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000  
+  type: ClusterIP
+---
+# HORIZONTAL POD AUTOSCALER
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: xray-app-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: xray-app
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+# INGRESS
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: xray-app-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: xray-app-service
+                port:
+                  number: 80
