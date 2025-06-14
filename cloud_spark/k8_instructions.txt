@@ -22,6 +22,8 @@ docker tag gcr.io/cloud-computing-project-2025/xray-app gcr.io/cloud-computing-p
 docker push gcr.io/cloud-computing-project-2025/xray-app
 docker push gcr.io/cloud-computing-project-2025/xray-app:v1
 
+# Depois criar um deployment.yaml para cada uma das imagens baseado no deployment.yaml que já temos do outro serviço único.
+
 # Create GKE Autopilot cluster
 gcloud container clusters create-auto xray-cluster --region europe-west4
 
