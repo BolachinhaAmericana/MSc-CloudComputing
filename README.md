@@ -16,3 +16,25 @@ By having and AI assistant to have a continuous look on the X-Rays of the patien
 
 3. Ease the understanding of the current situation to the patient and non-specialized individuals
     As there might be some difficulty explaining some medical concepts to patients and their families, this tool would present a way to simply explain the X-rays to the untrained eye
+
+## Services
+### DCM Handler
+
+- ``` GET - /dcm/status # check endpoint status ```
+- ``` POST - /dcm/process # run dcm processing on example images ```
+
+### Preprocessing
+
+- ``` GET - /preprocess/status # check endpoint status ```
+- ``` POST - /dcm/run # run preprocessing on example images ```
+
+
+### Inference 
+
+- ``` GET - /inference/status # check endpoint status ```
+- ``` POST - /inference/process # run inference on example images ```
+
+### Report 
+
+- ``` GET - /reporting/status # check endpoint status ```
+- ``` POST - /reporting/run # run report generation on example images ```
