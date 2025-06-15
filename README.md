@@ -1,6 +1,5 @@
 # MSc-CloudComputing
 
-## Phase 1 – Dataset, business capabilities and use cases
 ### Data:
 - [Kaggle Chest X-Ray Images (Pneumonia)](https://www.kaggle.com/datasets/paultimothymooney/chest-xray-pneumonia)
 - Updated 7 years ago
