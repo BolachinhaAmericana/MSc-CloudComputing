@@ -1,0 +1,543 @@
+################################
+# --- DCM Service Deployment ---
+################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dcm-service-deployment
+  labels:
+    app: dcm-service
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  selector:
+    matchLabels:
+      app: dcm-service
+  template:
+    metadata:
+      labels:
+        app: dcm-service
+    spec:
+      serviceAccountName: xray-app-sa # Ensure this service account exists and has permissions
+      containers:
+        - name: dcm-service-container
+          image: gcr.io/cloud-computing-project-2025/dcm-image:latest
+          command: ["/opt/spark/bin/spark-submit"] # Path to spark-submit in your image
+          args:
+            - "--jars"
+            - "/opt/spark/jars/gcs-connector-hadoop3-latest.jar" # Ensure this JAR is in your image
+            - "--conf"
+            - "spark.hadoop.fs.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem"
+            - "--conf"
+            - "spark.hadoop.fs.AbstractFileSystem.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS"
+            - "--conf"
+            - "spark.hadoop.google.cloud.auth.service.account.enable=true"
+            - "--conf"
+            # MODIFIED PATH FOR SPARK:
+            - "spark.hadoop.google.cloud.auth.service.account.json.keyfile=/opt/spark/work-dir/k8s-secret/gcp-credentials.json"
+            # CORRECTED PATH to api.py for the service:
+            - "/opt/spark/work-dir/api.py"
+          ports:
+            - containerPort: 5000 # Port your dcm_service/api.py Flask app listens on
+          env:
+            - name: FLASK_ENV
+              value: "production"
+            - name: GOOGLE_APPLICATION_CREDENTIALS # This is for Python GCS client, Spark uses keyfile conf
+              # MODIFIED PATH FOR PYTHON GCS CLIENT:
+              value: "/opt/spark/work-dir/k8s-secret/gcp-credentials.json"
+            - name: PYTHONUNBUFFERED # For seeing Python logs immediately
+              value: "1"
+          volumeMounts:
+            - name: gcp-credentials
+              # ENSURED mountPath IS CORRECT from previous fix:
+              mountPath: /opt/spark/work-dir/k8s-secret/gcp-credentials.json
+              subPath: gcp-credentials.json # Key in the secret
+          startupProbe:
+            httpGet:
+              path: /dcm/status
+              port: 5000
+            failureThreshold: 30
+            periodSeconds: 10
+            initialDelaySeconds: 30 # Spark submit can take longer to start Flask
+          readinessProbe:
+            httpGet:
+              path: /dcm/status
+              port: 5000
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /dcm/status
+              port: 5000
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "1"
+      volumes:
+        - name: gcp-credentials
+          secret:
+            secretName: gcp-credentials # Ensure this secret exists
+---
+# --- DCM Service ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: dcm-service
+spec:
+  selector:
+    app: dcm-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+  type: ClusterIP
+---
+# --- DCM Service HPA ---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: dcm-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: dcm-service-deployment
+  minReplicas: 1
+  maxReplicas: 5 # MODIFIED, was 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+##########################################
+# --- Preprocessing Service Deployment ---
+##########################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: preprocessing-service-deployment
+  labels:
+    app: preprocessing-service
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  selector:
+    matchLabels:
+      app: preprocessing-service
+  template:
+    metadata:
+      labels:
+        app: preprocessing-service
+    spec:
+      serviceAccountName: xray-app-sa
+      containers:
+        - name: preprocessing-service-container
+          image: gcr.io/cloud-computing-project-2025/preprocessing-image
+          command: ["/opt/spark/bin/spark-submit"]
+          args:
+            - "--jars"
+            - "/opt/spark/jars/gcs-connector-hadoop3-latest.jar"
+            - "--conf"
+            - "spark.hadoop.fs.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem"
+            - "--conf"
+            - "spark.hadoop.fs.AbstractFileSystem.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS"
+            - "--conf"
+            - "spark.hadoop.google.cloud.auth.service.account.enable=true"
+            - "--conf"
+            # MODIFIED PATH FOR SPARK:
+            - "spark.hadoop.google.cloud.auth.service.account.json.keyfile=/opt/spark/work-dir/k8s-secret/gcp-credentials.json"
+            # CORRECTED PATH to api.py for the service:
+            - "/opt/spark/work-dir/api.py"
+          ports:
+            - containerPort: 5001 # Port your preprocessing_service/api.py Flask app listens on
+          env:
+            - name: FLASK_ENV
+              value: "production"
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              # MODIFIED PATH FOR PYTHON GCS CLIENT:
+              value: "/opt/spark/work-dir/k8s-secret/gcp-credentials.json"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          volumeMounts:
+            - name: gcp-credentials
+              # ENSURED mountPath IS CORRECT from previous fix:
+              mountPath: /opt/spark/work-dir/k8s-secret/gcp-credentials.json
+              subPath: gcp-credentials.json
+          startupProbe:
+            httpGet:
+              path: /preprocess/status
+              port: 5001
+            failureThreshold: 30
+            periodSeconds: 10
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /preprocess/status
+              port: 5001
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /preprocess/status
+              port: 5001
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "1"
+      volumes:
+        - name: gcp-credentials
+          secret:
+            secretName: gcp-credentials
+---
+# --- Preprocessing Service ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: preprocessing-service
+spec:
+  selector:
+    app: preprocessing-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5001
+  type: ClusterIP
+---
+# --- Preprocessing Service HPA ---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: preprocessing-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: preprocessing-service-deployment
+  minReplicas: 1
+  maxReplicas: 5 # MODIFIED, was 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+######################################
+# --- Inference Service Deployment ---
+######################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inference-service-deployment
+  labels:
+    app: inference-service
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  selector:
+    matchLabels:
+      app: inference-service
+  template:
+    metadata:
+      labels:
+        app: inference-service
+    spec:
+      serviceAccountName: xray-app-sa
+      containers:
+        - name: inference-service-container
+          image: gcr.io/cloud-computing-project-2025/inference-image
+          command: ["/opt/spark/bin/spark-submit"]
+          args:
+            - "--jars"
+            - "/opt/spark/jars/gcs-connector-hadoop3-latest.jar"
+            - "--conf"
+            - "spark.hadoop.fs.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem"
+            - "--conf"
+            - "spark.hadoop.fs.AbstractFileSystem.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS"
+            - "--conf"
+            - "spark.hadoop.google.cloud.auth.service.account.enable=true"
+            - "--conf"
+            # MODIFIED PATH FOR SPARK:
+            - "spark.hadoop.google.cloud.auth.service.account.json.keyfile=/opt/spark/work-dir/k8s-secret/gcp-credentials.json"
+            # CORRECTED PATH to api.py for the service:
+            - "/opt/spark/work-dir/api.py"
+          ports:
+            - containerPort: 5002 # Port your inference_service/api.py Flask app listens on
+          env:
+            - name: FLASK_ENV
+              value: "production"
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              # MODIFIED PATH FOR PYTHON GCS CLIENT:
+              value: "/opt/spark/work-dir/k8s-secret/gcp-credentials.json"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          volumeMounts:
+            - name: gcp-credentials
+              # ENSURED mountPath IS CORRECT from previous fix:
+              mountPath: /opt/spark/work-dir/k8s-secret/gcp-credentials.json
+              subPath: gcp-credentials.json
+          startupProbe:
+            httpGet:
+              path: /inference/status
+              port: 5002
+            failureThreshold: 30
+            periodSeconds: 10
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /inference/status
+              port: 5002
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /inference/status
+              port: 5002
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi" # Model loading might need more
+              cpu: "1"
+      volumes:
+        - name: gcp-credentials
+          secret:
+            secretName: gcp-credentials
+---
+# --- Inference Service ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inference-service
+spec:
+  selector:
+    app: inference-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5002
+  type: ClusterIP
+---
+# --- Inference Service HPA ---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: inference-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: inference-service-deployment
+  minReplicas: 1
+  maxReplicas: 5 # MODIFIED, was 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+###################################
+# --- Report Service Deployment ---
+###################################
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: report-service-deployment
+  labels:
+    app: report-service
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+  selector:
+    matchLabels:
+      app: report-service
+  template:
+    metadata:
+      labels:
+        app: report-service
+    spec:
+      serviceAccountName: xray-app-sa
+      containers:
+        - name: report-service-container
+          image: gcr.io/cloud-computing-project-2025/report-image:latest
+          command: ["/opt/spark/bin/spark-submit"]
+          args:
+            - "--jars"
+            - "/opt/spark/jars/gcs-connector-hadoop3-latest.jar"
+            - "--conf"
+            - "spark.hadoop.fs.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFileSystem"
+            - "--conf"
+            - "spark.hadoop.fs.AbstractFileSystem.gs.impl=com.google.cloud.hadoop.fs.gcs.GoogleHadoopFS"
+            - "--conf"
+            - "spark.hadoop.google.cloud.auth.service.account.enable=true"
+            - "--conf"
+            # MODIFIED PATH FOR SPARK:
+            - "spark.hadoop.google.cloud.auth.service.account.json.keyfile=/opt/spark/work-dir/k8s-secret/gcp-credentials.json"
+            # CORRECTED PATH to api.py for the service:
+            - "/opt/spark/work-dir/api.py"
+          ports:
+            - containerPort: 5003 # Port your report_service/api.py Flask app listens on
+          env:
+            - name: FLASK_ENV
+              value: "production"
+            - name: GOOGLE_APPLICATION_CREDENTIALS
+              # MODIFIED PATH FOR PYTHON GCS CLIENT:
+              value: "/opt/spark/work-dir/k8s-secret/gcp-credentials.json"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+          volumeMounts:
+            - name: gcp-credentials
+              # ENSURED mountPath IS CORRECT from previous fix:
+              mountPath: /opt/spark/work-dir/k8s-secret/gcp-credentials.json
+              subPath: gcp-credentials.json
+          startupProbe:
+            httpGet:
+              path: /reporting/status
+              port: 5003
+            failureThreshold: 30
+            periodSeconds: 10
+            initialDelaySeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /reporting/status
+              port: 5003
+            initialDelaySeconds: 20
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /reporting/status
+              port: 5003
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "2Gi"
+              cpu: "500m"
+            limits:
+              memory: "4Gi"
+              cpu: "1"
+      volumes:
+        - name: gcp-credentials
+          secret:
+            secretName: gcp-credentials
+---
+# --- Report Service ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: report-service
+spec:
+  selector:
+    app: report-service
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5003
+  type: ClusterIP
+---
+# --- Report Service HPA ---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: report-service-hpa
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: report-service-deployment
+  minReplicas: 1
+  maxReplicas: 5 # MODIFIED, was 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+# --- Ingress for All Services ---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: multi-service-ingress
+  annotations:
+    # For Nginx Ingress controller:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Consider increasing timeouts for potentially long Spark operations triggered by API calls
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "600" # Increased for Spark job duration
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600" # Increased for Spark job duration
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m" # If you expect large uploads, though not typical for these APIs
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      rewrite ^/dcm$ /dcm/ permanent;
+      rewrite ^/preprocess$ /preprocess/ permanent;
+      rewrite ^/inference$ /inference/ permanent;
+      rewrite ^/reporting$ /reporting/ permanent;
+spec:
+  ingressClassName: nginx # Or your GKE ingress class
+  rules:
+    - http:
+        paths:
+          - path: /dcm
+            pathType: Prefix
+            backend:
+              service:
+                name: dcm-service
+                port:
+                  number: 80
+          - path: /preprocess
+            pathType: Prefix
+            backend:
+              service:
+                name: preprocessing-service
+                port:
+                  number: 80
+          - path: /inference
+            pathType: Prefix
+            backend:
+              service:
+                name: inference-service
+                port:
+                  number: 80
+          - path: /reporting
+            pathType: Prefix
+            backend:
+              service:
+                name: report-service
+                port:
+                  number: 80

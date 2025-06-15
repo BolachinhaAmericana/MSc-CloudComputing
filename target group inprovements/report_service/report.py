@@ -251,6 +251,7 @@ def run_report_generation_pipeline(spark_session,
 # --- Main function for standalone execution ---
 def main():
     spark = None
+    generated_paths = None 
     try:
         spark = (SparkSession.builder
                  .appName("PDF_Report_Generation_Pipeline_Standalone")
