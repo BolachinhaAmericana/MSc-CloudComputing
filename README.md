@@ -32,7 +32,7 @@ By having and AI assistant to have a continuous look on the X-Rays of the patien
 ### Inference 
 
 - ``` GET - /inference/status # check endpoint status ```
-- ``` POST - /inference/process # run inference on example images ```
+- ``` POST - /inference/run # run inference on example images ```
 
 ### Report 
 
